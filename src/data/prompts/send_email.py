@@ -1,0 +1,3 @@
+SEND_EMAIL_PROMPT = """
+
+"""
