@@ -39,16 +39,11 @@ class StudentResult(BaseModel):
     """Individual student result model"""
     result_id: int
     student_id: str
-    student_class: str
     subject: str
     test_date: str
-    test_number: int
-    question_number: int
     topic: str
     level: str
-    is_correct: bool
-    time_taken_seconds: int
-    student_ability: str
+    # Note: All records in this dataset represent incorrect answers
 
 class SearchSummary(BaseModel):
     """Search summary model"""
@@ -69,31 +64,25 @@ class StudentStatsInput(BaseModel):
     student_id: str = Field(description="Student ID to get stats for")
 
 class SubjectPerformance(BaseModel):
-    """Subject performance model"""
-    total_questions: int
-    correct_answers: int
-    accuracy: float
-    avg_time_seconds: float
+    """Subject performance model - showing only wrong answers"""
+    total_wrong_questions: int
+    wrong_topics: Dict[str, int]
 
 class LevelPerformance(BaseModel):
-    """Level performance model"""
-    total_questions: int
-    correct_answers: int
-    accuracy: float
+    """Level performance model - showing only wrong answers"""
+    total_wrong_questions: int
+    wrong_topics: Dict[str, int]
 
 class OverallStats(BaseModel):
-    """Overall statistics model"""
-    total_questions: int
-    correct_answers: int
-    accuracy_percentage: float
-    avg_time_seconds: float
+    """Overall statistics model - showing only wrong answers"""
+    total_wrong_questions: int
+    subjects_with_errors: List[str]
+    levels_with_errors: List[str]
 
 class StudentStatsOutput(BaseModel):
     """Output model for student statistics"""
     success: bool
     student_id: str
-    student_class: str
-    student_ability: str
     overall_stats: OverallStats
     subject_performance: Dict[str, SubjectPerformance]
     level_performance: Dict[str, LevelPerformance]
@@ -104,13 +93,35 @@ class LatestTestInput(BaseModel):
     """Input model for latest test summary"""
     student_id: Optional[str] = Field(None, description="Student ID to get latest test for (optional)")
 
+class SecondLatestTestInput(BaseModel):
+    """Input model for second latest test summary"""
+    student_id: Optional[str] = Field(None, description="Student ID to get second latest test for (optional)")
+
+class TopicStats(BaseModel):
+    """Topic statistics model for wrong answers"""
+    wrong_questions_count: int
+    topic_name: str
+
+class LevelStats(BaseModel):
+    """Level statistics with topic breakdown for wrong answers"""
+    total_wrong_questions: int
+    wrong_topics: Dict[str, int]  # topic_name -> count of wrong questions
+
 class SubjectStats(BaseModel):
     """Subject statistics model"""
     latest_test_date: str
-    question_levels: Dict[str, int]
+    level_breakdown: Dict[str, LevelStats]
 
 class LatestTestOutput(BaseModel):
     """Output model for latest test summary"""
+    success: bool
+    student_id: str
+    unique_students: int
+    subjects: Dict[str, SubjectStats]
+    error: Optional[str] = None
+
+class SecondLatestTestOutput(BaseModel):
+    """Output model for second latest test summary"""
     success: bool
     student_id: str
     unique_students: int
@@ -191,16 +202,10 @@ def search_student(search_input: StudentSearchInput) -> StudentSearchOutput:
             result = StudentResult(
                 result_id=int(row['result_id']),
                 student_id=str(row['student_id']),
-                student_class=row['student_class'],
                 subject=row['subject'],
                 test_date=row['test_date'].strftime('%Y-%m-%d'),
-                test_number=int(row['test_number']),
-                question_number=int(row['question_number']),
                 topic=row['topic'],
-                level=row['level'],
-                is_correct=bool(row['is_correct']),
-                time_taken_seconds=int(row['time_taken_seconds']),
-                student_ability=row['student_ability']
+                level=row['level']
             )
             results.append(result)
         
@@ -231,13 +236,13 @@ def search_student(search_input: StudentSearchInput) -> StudentSearchOutput:
 
 def get_student_stats(stats_input: StudentStatsInput) -> StudentStatsOutput:
     """
-    Get comprehensive statistics for a specific student
+    Get comprehensive statistics for a specific student showing wrong answers breakdown
     
     Args:
         stats_input: StudentStatsInput model with student ID
         
     Returns:
-        StudentStatsOutput model containing student statistics
+        StudentStatsOutput model containing student wrong answers statistics
     """
     try:
         df = _load_student_data()
@@ -249,50 +254,60 @@ def get_student_stats(stats_input: StudentStatsInput) -> StudentStatsOutput:
                 success=False,
                 error=f"No data found for student_id: {stats_input.student_id}",
                 student_id=stats_input.student_id,
-                student_class="",
-                student_ability="",
-                overall_stats=OverallStats(total_questions=0, correct_answers=0, accuracy_percentage=0, avg_time_seconds=0),
+                overall_stats=OverallStats(
+                    total_wrong_questions=0, 
+                    subjects_with_errors=[], 
+                    levels_with_errors=[]
+                ),
                 subject_performance={},
                 level_performance={},
                 test_dates=[]
             )
         
-        # Calculate statistics
-        total_questions = len(student_df)
-        correct_answers = int(student_df['is_correct'].sum())
-        accuracy = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
+        # Calculate overall statistics (all are wrong answers)
+        total_wrong_questions = len(student_df)
+        subjects_with_errors = list(student_df['subject'].unique())
+        levels_with_errors = list(student_df['level'].unique())
         
-        # Subject-wise performance
+        # Subject-wise performance (wrong answers)
         subject_stats = {}
         for subject in student_df['subject'].unique():
             subject_data = student_df[student_df['subject'] == subject]
+            
+            # Count wrong answers by topic for this subject
+            topic_counts = {}
+            for topic in subject_data['topic'].unique():
+                topic_data = subject_data[subject_data['topic'] == topic]
+                topic_counts[topic] = len(topic_data)
+            
             subject_stats[subject] = SubjectPerformance(
-                total_questions=len(subject_data),
-                correct_answers=int(subject_data['is_correct'].sum()),
-                accuracy=float((subject_data['is_correct'].sum() / len(subject_data)) * 100),
-                avg_time_seconds=float(subject_data['time_taken_seconds'].mean())
+                total_wrong_questions=len(subject_data),
+                wrong_topics=topic_counts
             )
         
-        # Level-wise performance
+        # Level-wise performance (wrong answers)
         level_stats = {}
         for level in student_df['level'].unique():
             level_data = student_df[student_df['level'] == level]
+            
+            # Count wrong answers by topic for this level
+            topic_counts = {}
+            for topic in level_data['topic'].unique():
+                topic_data = level_data[level_data['topic'] == topic]
+                topic_counts[topic] = len(topic_data)
+            
             level_stats[level] = LevelPerformance(
-                total_questions=len(level_data),
-                correct_answers=int(level_data['is_correct'].sum()),
-                accuracy=float((level_data['is_correct'].sum() / len(level_data)) * 100)
+                total_wrong_questions=len(level_data),
+                wrong_topics=topic_counts
             )
         
         return StudentStatsOutput(
             success=True,
             student_id=stats_input.student_id,
-            student_class=student_df['student_class'].iloc[0],
-            student_ability=student_df['student_ability'].iloc[0],
             overall_stats=OverallStats(
-                total_questions=total_questions,
-                correct_answers=correct_answers,
-                accuracy_percentage=float(accuracy),
-                avg_time_seconds=float(student_df['time_taken_seconds'].mean())
+                total_wrong_questions=total_wrong_questions,
+                subjects_with_errors=subjects_with_errors,
+                levels_with_errors=levels_with_errors
             ),
             subject_performance=subject_stats,
             level_performance=level_stats,
@@ -304,9 +319,11 @@ def get_student_stats(stats_input: StudentStatsInput) -> StudentStatsOutput:
             success=False,
             error=str(e),
             student_id=stats_input.student_id,
-            student_class="",
-            student_ability="",
-            overall_stats=OverallStats(total_questions=0, correct_answers=0, accuracy_percentage=0, avg_time_seconds=0),
+            overall_stats=OverallStats(
+                total_wrong_questions=0, 
+                subjects_with_errors=[], 
+                levels_with_errors=[]
+            ),
             subject_performance={},
             level_performance={},
             test_dates=[]
@@ -314,13 +331,13 @@ def get_student_stats(stats_input: StudentStatsInput) -> StudentStatsOutput:
 
 def get_latest_test_summary(latest_input: LatestTestInput) -> LatestTestOutput:
     """
-    Get the latest test results summary for each subject with question level breakdown
+    Get the latest test results summary showing wrong answers by level and topic
     
     Args:
         latest_input: LatestTestInput model with optional student ID
         
     Returns:
-        LatestTestOutput model containing latest test summary for each subject
+        LatestTestOutput model containing latest test summary with wrong answers breakdown
     """
     try:
         df = _load_student_data()
@@ -339,7 +356,7 @@ def get_latest_test_summary(latest_input: LatestTestInput) -> LatestTestOutput:
         else:
             filtered_df = df.copy()
         
-        # Group by subject and level to count questions from latest test for each subject
+        # Group by subject to analyze wrong answers from latest test for each subject
         subject_level_stats = {}
         
         # Get unique subjects
@@ -354,22 +371,27 @@ def get_latest_test_summary(latest_input: LatestTestInput) -> LatestTestOutput:
             # Get all results from the latest test date for this subject
             latest_subject_test_df = subject_data[subject_data['test_date'] == latest_date_for_subject]
             
-            # Count questions by level
-            level_counts = {
-                "Nhận biết": 0,
-                "Thông hiểu": 0,
-                "Vận dụng thấp": 0,
-                "Vận dụng cao": 0
-            }
+            # Analyze wrong answers by level and topic
+            level_breakdown = {}
             
-            # Count actual questions for each level
+            # Process each level
             for level in latest_subject_test_df['level'].unique():
                 level_data = latest_subject_test_df[latest_subject_test_df['level'] == level]
-                level_counts[level] = len(level_data)
+                
+                # Count wrong answers by topic for this level
+                topic_counts = {}
+                for topic in level_data['topic'].unique():
+                    topic_data = level_data[level_data['topic'] == topic]
+                    topic_counts[topic] = len(topic_data)
+                
+                level_breakdown[level] = LevelStats(
+                    total_wrong_questions=len(level_data),
+                    wrong_topics=topic_counts
+                )
             
             subject_level_stats[subject] = SubjectStats(
                 latest_test_date=latest_date_for_subject.strftime('%Y-%m-%d'),
-                question_levels=level_counts
+                level_breakdown=level_breakdown
             )
         
         return LatestTestOutput(
@@ -387,6 +409,134 @@ def get_latest_test_summary(latest_input: LatestTestInput) -> LatestTestOutput:
             unique_students=0,
             subjects={}
         )
+
+def get_second_latest_test_summary(second_latest_input: SecondLatestTestInput) -> SecondLatestTestOutput:
+    """
+    Get the second latest test results summary showing wrong answers by level and topic
+    
+    Args:
+        second_latest_input: SecondLatestTestInput model with optional student ID
+        
+    Returns:
+        SecondLatestTestOutput model containing second latest test summary with wrong answers breakdown
+    """
+    try:
+        df = _load_student_data()
+        
+        # Filter by student if provided
+        if second_latest_input.student_id:
+            filtered_df = df[df['student_id'].astype(str) == str(second_latest_input.student_id)]
+            if len(filtered_df) == 0:
+                return SecondLatestTestOutput(
+                    success=False,
+                    error=f"No data found for student_id: {second_latest_input.student_id}",
+                    student_id=second_latest_input.student_id,
+                    unique_students=0,
+                    subjects={}
+                )
+        else:
+            filtered_df = df.copy()
+        
+        # Group by subject to analyze wrong answers from second latest test for each subject
+        subject_level_stats = {}
+        
+        # Get unique subjects
+        subjects = filtered_df['subject'].unique()
+        
+        for subject in subjects:
+            subject_data = filtered_df[filtered_df['subject'] == subject]
+            
+            # Find the second latest test date for this specific subject
+            unique_dates = sorted(subject_data['test_date'].unique(), reverse=True)
+            
+            if len(unique_dates) < 2:
+                # Skip this subject if there's no second latest date
+                continue
+            
+            second_latest_date_for_subject = unique_dates[1]
+            
+            # Get all results from the second latest test date for this subject
+            second_latest_subject_test_df = subject_data[subject_data['test_date'] == second_latest_date_for_subject]
+            
+            # Analyze wrong answers by level and topic
+            level_breakdown = {}
+            
+            # Process each level
+            for level in second_latest_subject_test_df['level'].unique():
+                level_data = second_latest_subject_test_df[second_latest_subject_test_df['level'] == level]
+                
+                # Count wrong answers by topic for this level
+                topic_counts = {}
+                for topic in level_data['topic'].unique():
+                    topic_data = level_data[level_data['topic'] == topic]
+                    topic_counts[topic] = len(topic_data)
+                
+                level_breakdown[level] = LevelStats(
+                    total_wrong_questions=len(level_data),
+                    wrong_topics=topic_counts
+                )
+            
+            subject_level_stats[subject] = SubjectStats(
+                latest_test_date=second_latest_date_for_subject.strftime('%Y-%m-%d'),
+                level_breakdown=level_breakdown
+            )
+        
+        return SecondLatestTestOutput(
+            success=True,
+            student_id=second_latest_input.student_id or "all_students",
+            unique_students=len(filtered_df['student_id'].unique()),
+            subjects=subject_level_stats
+        )
+        
+    except Exception as e:
+        return SecondLatestTestOutput(
+            success=False,
+            error=str(e),
+            student_id=second_latest_input.student_id or "all_students",
+            unique_students=0,
+            subjects={}
+        )
+
+def analyze_wrong_answers_by_level(student_id: str, level: str = "Nhận biết") -> Dict[str, Any]:
+    """
+    Analyze wrong answers for a specific student and level
+    
+    Args:
+        student_id: Student ID to analyze
+        level: Level to analyze (default: "Nhận biết")
+        
+    Returns:
+        Dictionary containing analysis of wrong answers by subject and topic
+    """
+    latest_input = LatestTestInput(student_id=student_id)
+    result = get_latest_test_summary(latest_input)
+    
+    if not result.success:
+        return {"error": result.error}
+    
+    analysis = {
+        "student_id": student_id,
+        "level": level,
+        "subjects": {}
+    }
+    
+    total_wrong_questions = 0
+    
+    for subject_name, subject_stats in result.subjects.items():
+        if level in subject_stats.level_breakdown:
+            level_stats = subject_stats.level_breakdown[level]
+            
+            analysis["subjects"][subject_name] = {
+                "total_wrong_questions": level_stats.total_wrong_questions,
+                "wrong_topics": level_stats.wrong_topics,
+                "latest_test_date": subject_stats.latest_test_date
+            }
+            
+            total_wrong_questions += level_stats.total_wrong_questions
+    
+    analysis["total_wrong_questions_in_level"] = total_wrong_questions
+    
+    return analysis
 
 # Tool functions for AgentClient usage
 def search_student_tool_func(student_id: Optional[str] = None, subject: Optional[str] = None, student_class: Optional[str] = None, limit: int = 10):
@@ -413,7 +563,31 @@ def get_latest_test_tool_func(student_id: Optional[str] = "20250001"):
     print(f"Latest test result: {result}")
     return result.model_dump()
 
+def get_second_latest_test_tool_func(student_id: Optional[str] = "20250001"):
+    """Get second latest test summary for student - Tool function for AgentClient"""
+    second_latest_input = SecondLatestTestInput(student_id=student_id)
+    result = get_second_latest_test_summary(second_latest_input)
+    print(f"Second latest test result: {result}")
+    return result.model_dump()
+
+def analyze_wrong_answers_by_level_tool_func(student_id: str, level: str = "Nhận biết"):
+    """Analyze wrong answers for a specific level - Tool function for AgentClient"""
+    result = analyze_wrong_answers_by_level(student_id, level)
+    return result
+
 # Example usage
 if __name__ == "__main__":
     # Test the functions
+    print("=== Latest Test Summary ===")
     get_latest_test_tool_func("20250001")
+    
+    print("\n=== Second Latest Test Summary ===")
+    get_second_latest_test_tool_func("20250001")
+    
+    print("\n=== Analyze 'Nhận biết' Level ===")
+    nhan_biet_analysis = analyze_wrong_answers_by_level_tool_func("20250001", "Nhận biết")
+    print(f"Analysis for 'Nhận biết' level: {nhan_biet_analysis}")
+    
+    print("\n=== Analyze 'Thông hiểu' Level ===")
+    thong_hieu_analysis = analyze_wrong_answers_by_level_tool_func("20250001", "Thông hiểu")
+    print(f"Analysis for 'Thông hiểu' level: {thong_hieu_analysis}")

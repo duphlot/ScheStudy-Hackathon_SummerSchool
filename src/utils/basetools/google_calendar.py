@@ -241,13 +241,15 @@ class GoogleCalendarTool:
             if self.service is None:
                 raise Exception("Service not initialized")
             
-            # Parse dates from input
-            start_date = datetime.fromisoformat(input_data.start_date) if input_data.start_date else datetime.utcnow()
+            # Parse dates from input  
+            from datetime import datetime, timezone, timedelta
+            vietnam_tz = timezone(timedelta(hours=7))  # UTC+7 for Vietnam
+            start_date = datetime.fromisoformat(input_data.start_date) if input_data.start_date else datetime.now(vietnam_tz)
             end_date = datetime.fromisoformat(input_data.end_date) if input_data.end_date else start_date + timedelta(days=7)
             
-            # Convert to RFC3339 format
-            start_time = start_date.isoformat() + 'Z'
-            end_time = end_date.isoformat() + 'Z'
+            # Convert to RFC3339 format with Vietnam timezone
+            start_time = start_date.isoformat()
+            end_time = end_date.isoformat()
             
             events_result = self.service.events().list(
                 calendarId=input_data.calendar_id,
@@ -316,11 +318,11 @@ class GoogleCalendarTool:
                 'description': input_data.description,
                 'start': {
                     'dateTime': start_datetime.isoformat(),
-                    'timeZone': 'UTC',
+                    'timeZone': 'Asia/Ho_Chi_Minh',
                 },
                 'end': {
                     'dateTime': end_datetime.isoformat(),
-                    'timeZone': 'UTC',
+                    'timeZone': 'Asia/Ho_Chi_Minh',
                 },
             }
             
@@ -385,13 +387,13 @@ class GoogleCalendarTool:
                 start_dt = datetime.fromisoformat(input_data.start_datetime)
                 event['start'] = {
                     'dateTime': start_dt.isoformat(),
-                    'timeZone': 'UTC',
+                    'timeZone': 'Asia/Ho_Chi_Minh',
                 }
             if input_data.end_datetime is not None:
                 end_dt = datetime.fromisoformat(input_data.end_datetime)
                 event['end'] = {
                     'dateTime': end_dt.isoformat(),
-                    'timeZone': 'UTC',
+                    'timeZone': 'Asia/Ho_Chi_Minh',
                 }
             
             updated_event = self.service.events().update(
@@ -514,7 +516,9 @@ def read_calendar_events(days_ahead: int = 7) -> str:
     """
     try:
         calendar_tool = GoogleCalendarTool()
-        end_date = datetime.utcnow() + timedelta(days=days_ahead)
+        from datetime import timezone, timedelta
+        vietnam_tz = timezone(timedelta(hours=7))  # UTC+7 for Vietnam
+        end_date = datetime.now(vietnam_tz) + timedelta(days=days_ahead)
         
         input = GetEventsInput(
             calendar_id='primary',
@@ -535,6 +539,7 @@ def read_calendar_events(days_ahead: int = 7) -> str:
                 if event.description:
                     events_text += f"  Description: {event.description}\n"
                 events_text += "\n"
+            print(events_text)
             return events_text
         else:
             return f"Error reading calendar: {result.message}"
@@ -591,6 +596,7 @@ def create_calendar_event_simple(title: str, start_time: str, end_time: str, des
         
         if result.success and result.event:
             event = result.event
+            print(f"✅ Event created successfully!\nTitle: {event.summary}\nTime: {event.start} - {event.end}\nLocation: {event.location}\nLink: {event.htmlLink}")
             return f"✅ Event created successfully!\nTitle: {event.summary}\nTime: {event.start} - {event.end}\nLocation: {event.location}\nLink: {event.htmlLink}"
         else:
             return f"❌ Failed to create event: {result.message}"
@@ -612,7 +618,9 @@ def get_calendar_events(days_ahead: int = 7) -> str:
     """
     try:
         calendar_tool = GoogleCalendarTool()
-        end_date = datetime.utcnow() + timedelta(days=days_ahead)
+        from datetime import timezone, timedelta
+        vietnam_tz = timezone(timedelta(hours=7))  # UTC+7 for Vietnam
+        end_date = datetime.now(vietnam_tz) + timedelta(days=days_ahead)
         
         input_data = GetEventsInput(
             calendar_id='primary',
@@ -775,3 +783,8 @@ def delete_calendar_event(event_id: str) -> str:
             return f"❌ Failed to delete event: {result.message}"
     except Exception as e:
         return f"❌ Error deleting event: {str(e)}"
+
+
+if __name__ == "__main__":
+    # Test read calendar events
+    print(read_calendar_events(7))
