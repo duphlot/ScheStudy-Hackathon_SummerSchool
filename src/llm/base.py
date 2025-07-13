@@ -1,5 +1,5 @@
 from pydantic_ai import Agent
-from typing import List, Callable
+from typing import List, Callable, Optional
 import asyncio
 from pydantic_ai.models.gemini import GeminiModel
 from pydantic_ai.providers.google_gla import GoogleGLAProvider
@@ -13,7 +13,7 @@ session_manager = ShortTermMemory(max_messages=15)
 
 
 class AgentClient:
-    def __init__(self , system_prompt: str, tools: List[Callable], model: GeminiModel = model):
+    def __init__(self , system_prompt: str, tools: Optional[List[Callable]] = None, model: GeminiModel = model):
         self.model = model
         self.system_prompt = system_prompt
         self.tools = tools
@@ -21,5 +21,7 @@ class AgentClient:
     def create_agent(self):
         """Creates and returns a PydanticAI Agent instance."""
         return Agent(
-            model=self.model, system_prompt=self.system_prompt, tools=self.tools
+            model=self.model, 
+            system_prompt=self.system_prompt, 
+            tools=self.tools if self.tools is not None else []
         )
