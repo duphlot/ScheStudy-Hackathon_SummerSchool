@@ -90,7 +90,7 @@ Tạo file `.env` với các biến môi trường:
 GEMINI_API_KEY=your_gemini_api_key
 
 # Vector Database
-MILVUS_URI=http://localhost:19530
+MILVUS_URI=your_milvus_uri
 MILVUS_TOKEN=your_milvus_token
 
 # Email Configuration
@@ -109,9 +109,6 @@ REDIS_PORT=6379
 ```bash
 # Chạy main application
 chainlit run workflow/ScheStudy.py
-
-# Hoặc chạy demo cụ thể
-chainlit run config/company4_demo.py
 ```
 
 ## 📁 Cấu trúc dự án
