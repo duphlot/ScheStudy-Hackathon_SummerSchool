@@ -1,0 +1,38 @@
+/* Tùy chỉnh cho toàn bộ trang */
+#root {
+    background-image: url('/public/my-background.webp');
+    background-size: cover; /* Đảm bảo hình nền che phủ toàn bộ trang */
+    background-repeat: no-repeat; /* Ngăn hình nền lặp lại */
+    background-position: center center; /* Căn giữa hình nền */
+    background-attachment: fixed; /* Giữ hình nền cố định khi cuộn */
+}
+
+/* Thêm lớp phủ mờ để văn bản dễ đọc hơn */
+#root::before {
+    content: "";
+    position: absolute;
+    top: 0.5;
+    left: 10;
+    right:10;
+    bottom: 5;
+    background-color: rgba(0, 0, 0, 0.5); /* Lớp phủ màu đen với độ mờ 50% */
+    z-index: -1; /* Đặt lớp phủ phía sau nội dung */
+}
+
+#root > * {
+   z-index: 1; /* Đảm bảo nội dung hiển thị phía trên lớp phủ */
+}
+
+.watermark {
+    display: none !important;
+}
+
+.flex.flex-col.mx-auto.w-full.flex-grow.p-4 {
+    max-width: min(48rem, 100vw);
+    background-color: rgba(0, 0, 0, 0.5); 
+    background-attachment: fixed;
+    opacity: 7;
+    border-radius: 1rem;
+    z-index: 0;
+}
+
