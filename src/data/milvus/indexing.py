@@ -130,7 +130,7 @@ class MilvusIndexer:
         data = []
         for engine in ["openpyxl", "xlrd", "calamine"]:
             try:
-                xls = pd.ExcelFile(self.faq_file, engine=engine)   # type: ignore
+                xls = pd.ExcelFile(self.faq_file, engine=engine)  # type: ignore
                 for sheet_name in xls.sheet_names:
                     df = pd.read_excel(xls, sheet_name=sheet_name)
                     for _, row in df.iterrows():
@@ -179,12 +179,12 @@ class MilvusIndexer:
         if isinstance(category_texts, dict):
             categories = list(category_texts.keys())
             print(categories)
-            
+
             entities = []
-            
+
             for category in categories:
-                entities.append(category_texts[category]) 
-                entities.append(category_embeddings[category])  
+                entities.append(category_texts[category])
+                entities.append(category_embeddings[category])
 
         else:
             entities = [category_texts, category_embeddings]

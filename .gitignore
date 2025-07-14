@@ -5,6 +5,8 @@ __pycache__/
 
 *.so
 
+token.pickle
+
 .Python
 build/
 develop-eggs/

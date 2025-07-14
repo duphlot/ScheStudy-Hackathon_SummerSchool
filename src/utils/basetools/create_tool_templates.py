@@ -43,18 +43,18 @@
 #     matches a query to a pre-defined question and returns its corresponding pre-written answer.
 #     """
 #     client = MilvusClient(collection_name=input.collection_name)
-#     
+#
 #     query_embedding = embedding_engine.get_query_embedding(input.user_query)
-#     
+#
 #     search_results = client.generic_hybrid_search(
 #         query_dense_embedding=query_embedding,
 #         limit=input.k,
 #         query_text=input.user_query
 #     )
-#     
+#
 #     relevant_documents = []
 #     for result in search_results:
 #         if result.get('score', 0.0) >= input.threshold:
 #             relevant_documents.append(result.get('text', ''))
-#             
+#
 #     return SearchRelevantDocumentOutput(documents=relevant_documents)

@@ -6,7 +6,7 @@ Designed for use with AI agents and includes Pydantic models for structured inpu
 
 import math
 import re
-from typing import Union,Optional
+from typing import Union, Optional
 from decimal import getcontext
 import ast
 import operator

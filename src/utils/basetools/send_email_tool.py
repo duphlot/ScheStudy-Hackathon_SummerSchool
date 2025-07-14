@@ -36,8 +36,8 @@ def send_email_tool(
     """
     try:
         # Get sender credentials from input or environment variables
-        sender_email = sender_email  
-        sender_password = sender_password 
+        sender_email = sender_email
+        sender_password = sender_password
         smtp_server = "smtp.gmail.com"
         smtp_port = 587
 
