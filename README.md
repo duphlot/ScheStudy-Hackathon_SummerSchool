@@ -204,7 +204,7 @@ async def start():
 
 - **Memory Management**: Redis-based short-term memory với configurable retention
 - **Vector Search**: Milvus với hybrid search optimization
-- **Error Handling**: Comprehensive error handling và logging
+- **Error Handling**: Comprehensive error handling and logging
 - **Session Management**: Multi-user session support
 
 ## 🤝 Contributing
